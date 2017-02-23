@@ -11,20 +11,20 @@
 Процесс преобразования журнальных файлов в архивные журнальные файлы называется архивированием. Это возможно только когда база данных находится в режиме `ARCHIVELOG`. Вот некоторые преимущества режима `ARCHIVELOG`:
 
 *   Восстановление базы данных
-*   Update a standby database
-*   Perform a hot backup
+*   Обновлять на горячую
+*   Выполнение резервирования без выключения
 
-.In this article...   
+.В этой статье...   
 [NOTE]
 ====
-* Oracle 10g and Oracle 11g are concerned.  
-* a database SHUTDOWN is required to enable/disable Archive Log.  
-* SYSTEM privileges is necessary to execute commands. Otherwise, you may get some errors.
+* Основываясь на версии Oracle 10g и Oracle 11g.  
+* выключение базы дянных потребуется для включения/выключения режима Archive Log.  
+* привелегии SYSTEM необходимы для выполнения команд. Иначе вы можете получить некоторые ошибки.
 ====
 
-== Archive log status
+== Статус Archive log
 
-Before starting, you should check your db instance archive log status in order to know if your instance already is in archive log mode or not.You have different ways to see that:
+Прежде чем начать, вы должны проверить статус режима Archivelog вашего экземпляра. Есть несколько способов проверить это:
 
 [source,sql]
 ----
@@ -47,19 +47,19 @@ NOARCHIVELOG
 */
 ----
 
-As you can see from the result here, the instance is definately not in Archive Log mode.
+Как вы видите здесь, экземпляр базы данных не в режиме Archive Log.
 
-== Enable archive log
+== Включение archive log
 
-.Careful ...  
+.Осторожно ...  
 [CAUTION]
 ====
-It is recommanded to perform a *backup* of your instance *before* doing these changes.
+Рекомендовано выполнить *резервирование* вашего экземпляра базы данных *перед* внесения этих изменений.
 ====
 
-You can let the default parameters to get the archive log works. Otherwise if you want to personalize the archive log parameters, you may want to check how to change the different parameters here first.
+Вы можете использовать параметры по умолчанию, чтобы режим заработал. Однако, елси вы можете захотеть персонализировать параметры режима, вы можете увидеть как это сделать.
 
-We will now enable the archive log for the instance as following:
+Теперь мы можем включить режим archive log для нашего экземпляра следующим образом:
 
 [source,sql]
 ----
@@ -75,7 +75,7 @@ ALTER DATABASE OPEN ;
 
 ----
 
-Let's check the archive log mode information again:
+Давайте снова проверим информацию о режиме archive log:
 
 [source,sql]
 ----
@@ -96,23 +96,23 @@ ARCHIVELOG
 */
 ----
 
-Here we go, we are in archive log mode now!
+Круто,теперь мы в режиме archive log!
 
-.Do you know?  
+.Знаете лы вы?  
 [TIP]
 ====
-Before Oracle 10g, the following commands should be executed in order to automaticaly enable automatic archiving:
+Перед версией Oracle 10g, следующие команды должны были выполнены для включения автоматического архивирования:
 [source,sql]
 ----
 ALTER SYSTEM ARCHIVE LOG START ;  
 ALTER SYSTEM SET LOG_ARCHIVE_START=TRUE SCOPE=SPFILE ;
 ----
-This is now *deprecated* on Oracle 10g and onward.
+Теперь это *устаревшие* для Oracle 10g и старше.
 ====
 
-== Disable archive log
+== Выключение archive log
 
-In case of, you really need to turn off Archive Log for any reasons:
+Если, вдруг по каким-то причинам вам нужно выключить режим Archive Log:
 
 [source,sql]
 ----
@@ -128,25 +128,25 @@ ALTER DATABASE OPEN ;
 
 ----
 
-The instance should now be in `NO ARCHIVE LOG` mode.
+Теперь экземпляр будет в режиме `NO ARCHIVE LOG`.
 
-== Going futher ...
+== Дополнительно...
 
-=== Archive log parameters
+=== Параметры режима Archive log
 
-.Careful ...  
+.Осторожно...  
 [CAUTION]
 ====
-some parameter changes may require to restart the `db` instance.
+Некторые параметры могут потребовать рестарта экземпляра `db`.
 ====
 
-=== Change archive log destination
+=== Изменение расположения архивных журналов
 
-By default Archive destination shows `USE_DB_RECOVERY_FILE_DEST`, it means archive logs will be written to the flash recovery area path define by `RECOVERY_FILE_DEST` parameter. But if `LOG_ARCHIVE_DEST_n` is set then it will define the location where the archive logs will be written.
+По умолчанию расположение архивов отображены в `USE_DB_RECOVERY_FILE_DEST`, это означает, что архивные журналы записываются в директорию flash recovery area путь к кторой определяется в параметре `RECOVERY_FILE_DEST`. Но если перемнная `LOG_ARCHIVE_DEST_n` установлена, то она будет оперделять расположение архивных журналов.
 
 [source,sql]
 ----
--- Show archive log status (before)
+-- Показать статус archive log (перед выполнением)
 
 ALTER SYSTEM ARCHIVE LOG LIST ;
 /*
@@ -157,7 +157,7 @@ Oldest online log sequence   2186
 Current log sequence         2188
 */
 
--- Get flash recovery parameters
+-- получение параметров flash recovery 
 
 SHOW PARAMETER recovery_file_dest ;
 /*
@@ -167,14 +167,14 @@ db_recovery_file_dest           string      /u01/app/oracle/flash_recovery_area
 db_recovery_file_dest_size      big integer 4096M
 */
 
--- Set log_archive_dest_1 parameter
+-- установка параметра log_archive_dest_1 
 
 ALTER SYSTEM SET log_archive_dest_1='LOCATION=/u01/app/oracle/oradata/orcl/arch' SCOPE=BOTH ;
 /*
 System altered.
 */
 
--- Show archive log status (after)
+-- Показать статус archive log (после выполнения)
 
 ALTER SYSTEM ARCHIVE LOG LIST ;
 /*
@@ -186,39 +186,39 @@ Current log sequence         2188
 */
 ----
 
-For more information, please check oracle documentation https://docs.oracle.com/cd/E18283_01/server.112/e17120/archredo004.htm[here].
+Для получения дополнительной информации, пожалуйста обратитесь к документации oracle  https://docs.oracle.com/cd/E18283_01/server.112/e17120/archredo004.htm[здесь].
 
-=== Others useful archive log parameters
+=== Другие используемые параметры archive log 
 
-Here are some more parameters, you can be interrested in.
+Далее указаны некоторые параметры, кторые могут вас заинтересовать.
 
-`https://docs.oracle.com/cd/E18283_01/server.112/e17110/initparams124.htm[LOG_ARCHIVE_FORMAT]` specifies the default filename format when archiving redo log files.
+Переменная `https://docs.oracle.com/cd/E18283_01/server.112/e17110/initparams124.htm[LOG_ARCHIVE_FORMAT]` задает формат имени файла по умолчанию.
 
-*   The following variables can be used in the format:
+*   Следующие переменные могут быть использованы в формате:
 
-    **   `%s` log sequence number
+    **   `%s` номер последовательности журнала (log sequence number)
     **   `%S` log sequence number, zero filled
-    **   `%t` thread number
+    **   `%t` номер нити (thread number)
     **   `%T` thread number, zero filled
-    **   `%a` activation ID
-    **   `%d` database ID
+    **   `%a` идентификатор актвации (activation ID)
+    **   `%d` идентификатор базы данных (database ID)
     **  `%r` resetlogs ID that ensures unique names are constructed for the archived log files across multiple incarnations of the database
-*   Example:
+*   Пример:
 +
 [source,sql]
 ----
 ALTER SYSTEM SET LOG_ARCHIVE_FORMAT='log%t_%s_%r.arc'SCOPE=BOTH ;
 ----
 
-`https://docs.oracle.com/cd/E18283_01/server.112/e17110/initparams126.htm[LOG_ARCHIVE_MAX_PROCESSES]` specifies the maximum number of ARCn processes that can be created.
+Параметр `https://docs.oracle.com/cd/E18283_01/server.112/e17110/initparams126.htm[LOG_ARCHIVE_MAX_PROCESSES]` задает максимальное число процессов ARCn, которые могут быть созданы.
 
-=== Enable archive log with manual archiving
+=== Включение режима archive log с ручным архивированием
 
-It is *not recommanded* so use it if you really know what you are doing.
+Это *не рекомендовано*, так что вы можете использовать это, если вы действительно знаете, что делаете.
 
 [source,sql]
 ----
--- Enable archive log with manual archiving
+-- Включение archive log с ручным архивированием
 
 SHUTDOWN IMMEDIATE ;
 
@@ -235,7 +235,7 @@ ALTER SYSTEM SWITCH LOGFILE ;
 ALTER SYSTEM ARCHIVE LOG ALL ;
 ----
 
-.Careful ...  
+.Осторожно ...  
 [CAUTION]
 ====
 If all your online redo logs are filled up, then this mode will hang your database until you manually archive one of them at least.
@@ -243,11 +243,11 @@ If all your online redo logs are filled up, then this mode will hang your databa
 
 For more information, please check oracle documentation https://docs.oracle.com/cd/E18283_01/server.112/e17120/archredo004.htm[here].
 
-=== Some useful queries
+=== Несколько полезных запросов
 
 [source,sql]
 ----
--- Daily archives log size generated
+-- Дневной размер сгенерированных archives log
 
 SELECT TRUNC(next_time) "Date", ROUND(SUM(blocks*block_size/1024/1024)) Mo
 FROM v$archived_log
