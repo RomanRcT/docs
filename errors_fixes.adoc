@@ -1,0 +1,243 @@
+= Oracle installation errors and fixes
+Кархачев Роман <roman@aviacons.ru>
+:doctype: article
+:encoding: utf-8
+:lang: ru
+:toc: left
+:homepage: http://www.aviacons.ru
+:experimental:
+
+This article will list all errors/issues I encounter during Oracle installation with their fix.
+It will be updated with all new errors I will encounter.
+
+[NOTE]
+====
+In this article "Fix prior install" needs jar binary. Install it with the following command:
+[source,bash]
+----
+$ yum -y install java-devel
+----
+====
+
+== memcpy errors in ins_ctx.mk
+
+.Error output
+----
+INFO: gcc -o ctxhx -m64 -L/u01/app/oracle/product/11.2.0/db_1/ctx/lib/ -L/u01/app/oracle/product/11.2.0/db_1/lib/ -L/u01/app/oracle/product/11.2.0/db_1/lib/stubs/  /u01/app/oracle/product/11.2.0/db_1/ctx/lib/ctxhx.o -L/u01/app/oracle/product/11.2.0/db_1/ctx/lib/ -lm -lsc_fa -lsc_ex -lsc_da -lsc_ca -lz  -lctxhx -Wl,-rpath,/u01/app/oracle/product/11.2.0/db_1/ctx/lib -lsnls11 -lnls11  -lcore11 -lsnls11 -lnls11 -lcore11 -lsnls11 -lnls11 -lxml11 -lcore11 -lunls11 -lsnls11 -lnls11 -lcore11 -lnls11  `cat /u01/app/oracle
+INFO: /product/11.2.0/db_1/lib/sysliblist`
+ 
+INFO: /lib64/libstdc++.so.5: undefined reference to `memcpy@GLIBC_2.14'
+collect2: error: ld returned 1 exit status
+ 
+INFO: make: *** [ctxhx] Error 1
+ 
+INFO: End output from spawned process.
+INFO: Exception thrown from action: make
+Exception Name: MakefileException
+Exception String: Error in invoking target 'install' of makefile '/u01/app/oracle/product/11.2.0/db_1/ctx/lib/ins_ctx.mk'. See '/u01/app/oraInventory/logs/installActions2015-04-17_10-00-15PM.log' for details.
+Exception Severity: 1
+----
+
+
+=== Solution
+
+==== Fix prior install
+
+Execute thefollowing script:
+[source,bash]
+----
+# Fix ctx/lib/ins_ctx.mk
+ 
+ORACLE_SRC_INSTALL_DIR=/media/sf_uxora_share/database
+cd ${ORACLE_SRC_INSTALL_DIR}/stage/Components
+ 
+jar_file=
+for i_file in $( ls ./oracle.ctx/11.2.0.1.0/1/DataFiles/filegroup*.jar ); do
+unzip -l ${i_file} ctx/lib/ins_ctx.mk 2>&1 1>/dev/null
+[[ $? -eq 0 ]] && jar_file=${i_file} && break
+done
+ 
+cat << __EOF__ > /tmp/memcpy_wrap.c
+#include <stddef.h>
+#include <string.h>
+ 
+asm (".symver wrap_memcpy, memcpy@GLIBC_2.14");
+void *wrap_memcpy(void *dest, const void *src, size_t n) {
+return memcpy(dest, src, n);
+}
+__EOF__
+unzip ${jar_file} ctx/lib/ins_ctx.mk 2>&1 1>/dev/null
+if [[ $? -eq 0 ]]; then
+sed -i -e 's/\$(INSO_LINK)/\$(INSO_LINK) -Wl,--wrap=memcpy_wrap \$(ORACLE_HOME)\/ctx\/lib\/memcpy_wrap.o/g' ctx/lib/ins_ctx.mk
+gcc -c /tmp/memcpy_wrap.c -o ctx/lib/memcpy_wrap.o && rm /tmp/memcpy_wrap.c
+jar -uvf  ${jar_file} ctx/lib/ins_ctx.mk ctx/lib/memcpy_wrap.o
+fi
+----
+
+==== Fix during install
+
+This fix can only be done in GUI mode installer.
+
+When the windows prompt this error message:
+----
+Error in invoking target 'install' of makefile '/u01/app/oracle/product/11.2.0/db_1/ctx/lib/ins_ctx.mk'. See '/u01/app/oraInventory/logs/installActions2015-04-17_10-00-15PM.log' for details.
+----
+
+Execute the following script then click kbd:[retry] to resume install
+[source,bash]
+----
+# Fix ctx/lib/ins_ctx.mk
+ 
+ORACLE_HOME=/u01/app/oracle/product/11.2.0/db_1
+ 
+cat << __EOF__ > /tmp/memcpy_wrap.c
+#include <stddef.h>
+#include <string.h>
+ 
+asm (".symver wrap_memcpy, memcpy@GLIBC_2.14");
+void *wrap_memcpy(void *dest, const void *src, size_t n) {
+return memcpy(dest, src, n);
+}
+__EOF__
+ 
+if [[ -e "${ORACLE_HOME}/ctx/lib/ins_ctx.mk" ]]; then
+sed -i -e 's/\$(INSO_LINK)/\$(INSO_LINK) -Wl,--wrap=memcpy_wrap \$(ORACLE_HOME)\/ctx\/lib\/memcpy_wrap.o/g' ${ORACLE_HOME}/ctx/lib/ins_ctx.mk
+gcc -c /tmp/memcpy_wrap.c -o ${ORACLE_HOME}/ctx/lib/memcpy_wrap.o && rm /tmp/memcpy_wrap.c
+fi
+----
+
+== ins_emagent.mk error
+
+.Error output
+----
+INFO: ib/amd64 -z lazyload -ljava -ljvm -lverify -z nolazyload -Wl,-rpath,/u01/app/oracle/product/11.2.0/db_1/lib/:/u01/app/oracle/product/11.2.0/db_1/sysman/lib/:/u01/app/oracle/product/11.2.0/db_1/jdk/jre/lib/amd64/server:/u01/app/oracle/product/11.2.0/db_1/jdk/jre/lib/amd64 -Wl,--allow-shlib-undefined    `cat /u01/app/oracle/product/11.2.0/db_1/lib/sysliblist` -ldl -lm
+ 
+INFO: /u01/app/oracle/product/11.2.0/db_1/sysman/lib/ins_emagent.mk:127: warning: overriding recipe for target `nmosudo'
+/u01/app/oracle/product/11.2.0/db_1/sysman/lib/ins_emagent.mk:56: warning: ignoring old recipe for target `nmosudo'
+ 
+INFO: /usr/bin/ld: warning: -z lazyload ignored.
+/usr/bin/ld: warning: -z nolazyload ignored.
+/usr/bin/ld: /u01/app/oracle/product/11.2.0/db_1/sysman/lib//libnmectl.a(nmectlt.o): undefined reference to symbol 'B_DestroyKeyObject'
+/usr/bin/ld: note: 'B_DestroyKeyObject' is defined in DSO /u01/app/oracle/product/11.2.0/db_1/lib/libnnz11.so so try adding it to the linker command line
+/u01/app/oracle/product/11.2.0/db_1/lib/libnnz11.so: could not read symbols: Invalid operation
+collect2: error: ld returned 1 exit sta
+INFO: tus
+ 
+INFO: make[1]: Leaving directory `/u01/app/oracle/product/11.2.0/db_1/sysman/lib'
+ 
+INFO: make[1]: *** [/u01/app/oracle/product/11.2.0/db_1/sysman/lib/emdctl] Error 1
+make: *** [emdctl] Error 2
+ 
+INFO: End output from spawned process.
+
+INFO: Exception thrown from action: make
+Exception Name: MakefileException
+Exception String: Error in invoking target 'agent nmhs' of makefile '/u01/app/oracle/product/11.2.0/db_1/sysman/lib/ins_emagent.mk'. See '/u01/app/oraInventory/logs/installActions2015-04-23_01-23-30PM.log' for details.
+Exception Severity: 1
+----
+
+=== Solution
+
+==== Fix prior install
+
+Execute the following script:
+[source,bash]
+----
+# Fix sysman/lib/ins_emagent.mk
+ 
+ORACLE_SRC_INSTALL_DIR=/media/sf_uxora_share/database
+cd ${ORACLE_SRC_INSTALL_DIR}/stage/Components
+ 
+jar_file=
+for i_file in $( ls ./oracle.sysman.agent/*/1/DataFiles/filegroup*.jar ); do
+unzip -l ${i_file} sysman/lib/ins_emagent.mk 2>&1 1>/dev/null
+[[ $? -eq 0 ]] && jar_file=${i_file} && break
+done
+ 
+unzip ${jar_file} sysman/lib/ins_emagent.mk 2>&1 1>/dev/null
+if [[ $? -eq 0 ]]; then
+sed -i -e 's/\$(MK_EMAGENT_NMECTL)/\$(MK_EMAGENT_NMECTL) -lnnz11/g' sysman/lib/ins_emagent.mk
+jar -uvf  ${jar_file} sysman/lib/ins_emagent.mk
+fi
+----
+
+==== Fix during install
+
+This fix can only done in GUI mode installer. When the windows prompt this error message:
+
+----
+Error in invoking target 'agent nmhs' of makefile '/u01/app/oracle/product/11.2.0/db_1/sysman/lib/ins_emagent.mk'. See '/u01/app/oraInventory/logs/installActions2015-04-23_01-23-30PM.log' for details.
+----
+
+Execute the following script then click kbd:[retry] to resume install
+[source,bash]
+----
+# Fix ctx/lib/ins_ctx.mk
+ 
+ORACLE_HOME=/u01/app/oracle/product/11.2.0/db_1
+ 
+if [[ -e "${ORACLE_HOME}/sysman/lib/ins_emagent.mk" ]]; then
+sed -i -e 's/\$(MK_EMAGENT_NMECTL)/\$(MK_EMAGENT_NMECTL) -lnnz11/g' ${ORACLE_HOME}/sysman/lib/ins_emagent.mk
+fi
+----
+
+== ORA-00845
+
+.Error output
+----
+ORA-00845: MEMORY_TARGET not supported on this system
+----
+
+=== Solution 
+
+Reduce memory target parameter 
+
+Increase the size of /dev/shm
+[source,bash]
+----
+# check filesystems
+$ df -h
+Filesystem                                 Size  Used Avail Use% Mounted on
+/dev/mapper/ol-root                         14G  5.0G  9.0G  36% /
+devtmpfs                                   3.8G     0  3.8G   0% /dev
+tmpfs                                      3.8G  1.9G  2.0G  48% /dev/shm
+tmpfs                                      3.8G  8.9M  3.8G   1% /run
+tmpfs                                      3.8G     0  3.8G   0% /sys/fs/cgroup
+/dev/vdb1                                   32G   11G   22G  33% /u01
+/dev/vda1                                  497M  150M  348M  31% /boot
+ 
+# increase /dev/shm accordingly to your max ram memory
+$ mount -o remount,size=6G /dev/shm
+ 
+# make this change permanent, add/change /etc/fstab
+$ vi /etc/fstab
+...
+tmpfs  /dev/shm  tmpfs  defaults,size=6G  0 0
+...
+ 
+# update mount
+$ mount -a
+----
+
+== ORA-19502/ORA-27072
+
+.Error output
+----
+...
+ORA-19502: write error on file "...",
+block number 251905 (block size=512)
+ORA-27072: File I/O error
+Linux-x86_64 Error: 25: Inappropriate ioctl for device
+...
+----
+
+=== Solution 
+
+==== Free disk space/Add disk space
+
+There is not enough disk space. Check disk space with kbd:[df -h <path>]
+
+Hope this help.
+
+
+

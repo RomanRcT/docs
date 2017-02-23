@@ -1,0 +1,39 @@
+= Installing, Tuning, and Deploying Oracle Database on SUSE® Linux Enterprise Server 12
+Кархачев Роман <roman@aviacons.ru>
+:doctype: article
+:encoding: utf-8
+:lang: ru
+:toc: left
+:homepage: http://www.aviacons.ru
+:experimental:
+
+== SUSE Components
+
+=== Software
+
+Select Oracle Server Base (orarun)
+
+=== What is provides? 
+
+Helps to meet Oracle Database Installation prerequisites:
+
+* Create user
+** oracle
+* Creates groups
+** dba, oinstall
+* Install required packages
+* Sets required SUSE Linux Enterprise kernel parameters
+* Sets Oracle environment variables
+
+=== Adopting new directory location
+
+==== Steps to change default kbd:[/opt/oracle] to kbd:[/home/oracle]
+
+* Creates new directory: `$mkdir /home/oracle`
+* Sets proper owner & groups
+** `$chown oracle /home/oracle`
+** `$chgrp ionstall /homw/oracle`
+* Sets ORACLE_BASE=/home/oracle in /etc/sysconfig/oracle
+* Change ORACLE_BASE in /etc/profile.d/oracle.s[sh]
+** ORACLE_BASE=/home/oracle
+

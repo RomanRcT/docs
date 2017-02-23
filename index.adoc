@@ -1,0 +1,25 @@
+= Список документации
+Кархачев Роман <roman@aviacons.ru>
+:doctype: article
+:encoding: utf-8
+:lang: ru
+:toc: left
+:homepage: http://www.aviacons.ru
+:experimental:
+
+
+== Документация по Oracle
+
+
+<<rman_best_pract.adoc#,RMAN Best Practice>>
+
+<<archivelog.adoc#,Archive Log Mode>>
+
+<<errors_fixes.adoc#,Oracle installation errors and fixes>>
+
+<<install_ora.adoc#,Installing, Tuning, and Deploying Oracle Database on SUSE® Linux Enterprise Server 12>>
+
+<<oracle_inst_ol7.adoc#,Oracle Database 12c Release 1 (12.1) Installation On Oracle Linux 7 (OL7)>>
+
+<<shrinktemp.adoc#,Shrink temporary datafile>>
+

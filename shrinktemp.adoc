@@ -1,0 +1,132 @@
+= Shrink temporary datafile
+Кархачев Роман <roman@aviacons.ru>
+:doctype: article
+:encoding: utf-8
+:lang: ru
+:toc: left
+:homepage: http://www.aviacons.ru
+:experimental:
+
+The temporary tablespace can reach a huge size, sometimes because of a big batch operation.
+
+You may want to reduce it to save some disk space. If so, this article will present you some ways to do it.
+
+[source,sql]
+----
+-- Get temporary datafiles size
+
+SELECT name TempFile, bytes/1024/1024 MB
+FROM v$tempfile ;
+/*
+TEMPFILE                                                  MB
+-----------------------------------------------------     -----
+/u01/app/oracle/oradata/db01/oradata/temp/TEMP01.dbf      2800
+...
+*/
+----
+
+== Resize method
+
+The `RESIZE` option can be used for temporary datafile but it may not be very efficient sometimes. For example, a 2800MB temporary datafile which has only 21MB in use, a `RESIZE` COMMAND to 2600MB may give you this kind of error:
+
+[source,sql]
+----
+-- Resize temporary datafiles with resize option
+
+ALTER DATABASE TEMPFILE '/u01/app/oracle/oradata/db01/oradata/temp/TEMP01.dbf' RESIZE 2600M ;
+/*
+ERROR at line 1:
+ORA-03297: file contains used data beyond requested RESIZE value
+*/
+----
+
+(Read this article about RESIZE : http://www.uxora.com/oracle/dba/5-shrink-datafiles-with-resize[shrink-datafiles-with-resize.html]) In case of the Resize option is not enough efficient, see the alternative way below.
+
+== Drop and recreate method
+
+[source,sql]
+----
+-- Create a new temporary tablespace
+
+CREATE TEMPORARY TABLESPACE TEMP2DROP
+TEMPFILE '/u01/app/oracle/oradata/db01/oradata/temp/TEMP2DROP01.dbf'
+SIZE 100M AUTOEXTEND ON NEXT 100M MAXSIZE 32767M
+EXTENT MANAGEMENT LOCAL UNIFORM SIZE 1M ;
+/*
+Tablespace created.
+*/
+
+-- Check database default temporary tablespace
+
+SELECT property_value
+FROM database_properties
+WHERE property_name = 'DEFAULT_TEMP_TABLESPACE';
+/*
+DEFAULT_TEMP_TABLESPACE
+-----------------------
+TEMP
+*/
+
+-- Change database default temporary tablespace
+
+ALTER DATABASE DEFAULT TEMPORARY TABLESPACE temp2drop;
+/*
+Database altered.
+*/
+
+-- Change default user temporary tablespace
+
+SELECT 'ALTER USER '||username||' TEMPORARY TABLESPACE temp2drop ;' SqlCmd
+FROM dba_users
+WHERE temporary_tablespace = 'TEMP';
+/*
+SQLCMD
+-------------------------------------------------
+ALTER USER USER1 TEMPORARY TABLESPACE temp2drop ;
+ALTER USER USER2 TEMPORARY TABLESPACE temp2drop ;
+...
+*/
+
+-- Check sessions using TEMP
+
+SELECT vss.status, vss.username, vss.sid, vss.serial#
+FROM V$SORT_USAGE vsu
+JOIN v$session vss
+ON vsu.session_num = vss.serial#
+WHERE tablespace = 'TEMP';
+/*
+STATUS   USERNAME          SID    SERIAL#
+-------- ---------- ---------- ----------
+INACTIVE USER1             119      36564
+...
+*/
+
+-- Kill inactive session using TEMP
+
+SELECT 'ALTER SYSTEM KILL SESSION '''||vss.SID||','||vss.SERIAL#||''' IMMEDIATE ;' SqlCmd
+FROM v$sort_usage vsu
+JOIN v$session vss
+ON vsu.session_num = vss.serial#
+WHERE tablespace = 'TEMP'
+AND vss.status = 'INACTIVE' ;
+/*
+SQLCMD
+-------------------------------------------------
+ALTER SYSTEM KILL SESSION '119,36564' IMMEDIATE ;
+...
+*/
+
+-- Drop TEMP tablespace
+
+DROP TABLESPACE temp INCLUDING CONTENTS AND DATAFILES;
+/*
+Tablespace dropped.
+*/
+
+----
+
+Then you can recreate TEMP by repeating all theses steps and finally drop TEMP2DROP at the end.
+
+HTH, Michel.
+Related articles:  
+- http://dbahome.blogspot.com/2009/02/how-to-shrink-temporary-tablespace-if.html[dbahome.blogspot.com]

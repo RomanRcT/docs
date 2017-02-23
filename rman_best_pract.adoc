@@ -1,0 +1,272 @@
+= RMAN Best Practice
+Кархачев Роман <roman@aviacons.ru>
+:doctype: article
+:encoding: utf-8
+:lang: ru
+:toc: left
+:homepage: http://www.aviacons.ru
+:experimental:
+
+Данная статья дает некоторые советы чтобы делать бэкапы RMAN правильным способом основываясь на опыте автора.
+
+== Backup and Recovery  
+IMHO, наиболее важная задача DBA - это делать бэкапы и самая важная задача DBA - это восстановление из бэкапов.  
+Ежедневное резервирование данных может нудной задачей, надеюсь она вам не потребуется, но это позволит вам быть в безопасности.  
+Надеюсь вы никогда не будете делать восстановление, но это то, что DBA должен хорошо уметь делать.
+
+== Database recommendations
+=== включение опаеделения bad block
+
+Это немного добавит нагрузку на CPU, но Oracle сможет определять эти блоки зараThis slightly add a cpu overhead, but Oracle will be able to detect block corruption earlier if you enable the following parameters:
+
+[source,bash]
+----
+-- enable bad block detection
+SQL> alter system set db_block_checking=medium scope=both;
+System altered.
+
+SQL> alter system set db_block_checksum=full scope=both;
+System altered.
+
+----
+
+From 11g, DB_ULTRA_SAFE parameter (see http://docs.oracle.com/cd/B28359_01/server.111/b28320/initparams064.htm[here]) is introduced to set the default values for above parameters that control protection levels:
+
+[source,sql]
+----
+alter system set db_ultra_safe=data_only scope=spfile ;
+----
+
+=== enable block change tracking
+
+For incremental backups, change tracking feature improves incremental backup performance by recording changed blocks in each datafile in a change tracking file. If change tracking is enabled, RMAN uses the change tracking file to identify changed blocks for incremental backup, thus avoiding the need to scan every block in the datafile.
+
+[source,bash]
+----
+-- enable block change tracking
+SQL> alter database enable block change tracking ;
+Database altered.
+----
+
+=== duplex online logs and archive logs
+
+If one of the log files get corrupted then the second member file can be used to recover.  
+This may affect performance depends on write speed media.
+
+[source,bash]
+----
+-- add online redo logs member
+SQL> alter database add logfile member '/location/redo12.log' to group 1;
+
+-- add second archive log destination
+SQL> alter system set log_archive_dest_2='location=/location/arch_2' scope=both;
+
+----
+
+== RMAN recommendations
+
+=== Backup Controlfile 
+
+Controlfile needs to be backup last to include last database backup.  
+RMAN can actually do this for you by configuring the following parameter :
+
+[source,bash]
+----
+RMAN> configure controlfile autobackup on ;
+----
+
+=== Set one datafile by backup piece
+
+RMAN must read through the entire backup piece to get a datafile or archivelog.  
+If you have only one datafile or archive log to recover then it will be quicker to complete.
+[source,bash]
+----
+RMAN> backup database filesperset 1 plus archivelog delete input ;
+----
+
+=== Disable Backup Optimization feature
+
+This feature tells RMAN to skip files that have already been backed up and hasn't changed.  
+It is a good feature to save diskspace but makes backup management more risky if you delete a old backupset that is needed by another.  
+So I recommend to disable this option to make sure the unchanged files will still be included in the backupset:
+
+[source,bash]
+----
+RMAN> configure backup optimization off ;
+----
+
+=== Use CHECK LOGICAL with backup
+
+This will make RMAN to check for logical corruption by making additionnal validation during backup.  
+It is a good option to avoid corrupted block to be backed up:
+
+[source,bash]
+----
+RMAN> backup check logical database plus archivelog delete input;
+----
+
+=== Do not use DELETE ALL INPUT
+
+After backing up any one copy, all copies of it will be deleted.  
+So this will make you lost the redundancy when archive logs are duplexed.  
+Therefore if an archivelog is missing or corrupt, you won't get no more this second chance.
+
+Instead use `DELETE INPUT`, where only the copy that was just backed up is deleted, the other copy will remain for subsequent backups to handle.
+
+=== Set Archivelog Deletion Policy
+
+Let RMAN to manage archivelogs deletion instead of doing it manually.  
+Simply configure an archivelog deletion policy as follow:
+
+[source,bash]
+----
+RMAN> CONFIGURE ARCHIVELOG DELETION POLICY TO APPLIED ON ALL STANDBY BACKED UP 2 TIMES TO DEVICE TYPE DISK ;
+----
+
+In this case, when backing up archivelogs with ``DELETE INPUT`` option, RMAN will delete archivelogs only after they have been backed up in two diferent backupset and applied on standby databases.
+
+=== Set retention policy
+
+RMAN parameter to configure
+
+[source,bash]
+----
+RMAN> CONFIGURE RETENTION POLICY TO RECOVERY WINDOW OF 28 DAYS;
+----
+
+If not using a catalog, ensure that the control_file_record_keep_time instance parameter is set.
+
+[source,sql]
+----
+alter system set control_file_record_keep_time=28 scope=both
+----
+
+=== Maintain catalog
+
+CROSSCHECK ARCHIVELOG is NOT recommended  
+Archive logs marked as expired will be silently ignored during all subsequent archive log backups. This will compromise the recoverability of the database without so much as a warning message.
+
+In order to avoid catalog to grow indefinately and to make backup more manageable, you may want to delete some old backupset.  
+First make sure you have set retention policy as explain just before, then delete old backupset as follow :
+
+[source,bash]
+----
+# delete the expired backups
+RMAN> CROSSCHECK BACKUP ;
+RMAN> DELETE EXPIRED BACKUP ;
+
+# deletes obsolete backups defined by retention policy
+RMAN> DELETE OBSOLETE;
+----
+
+=== Verify Backup
+
+In order to ensure that you have a working backup, it can be validated as follow:
+[source,bash]
+----
+RMAN> restore database validate ;
+----
+
+or you can specify the backupset key as follow:
+
+[source,bash]
+----
+RMAN> validate backupset 9 ;
+----
+
+== Others recommendations
+
+=== Make the most of your Logs
+
+Log file needs to be reviewed and check for errors to make sure of its sucessful completion.  
+To logs additional useful information about the related backup, I would recommend to :
+
+*   Set NLS_DATE_FORMAT, NLS_LANGUAGE to make output more readable.
+*   Output all parameters used for the backup
+*   Echo commands and its output to the log file
+*   Output a "preview restore database" after backup (see below)
+*   Use a unique log filename (ie with timestamp) to avoid logfile override
+Theses informations can be valuable in case of a full recovery or in stressful situation.
+
+=== Preview restore database
+
+In a restore database situation, you can preview backup information that will be used for the restore.  
+This can also be used in backup log output for additionnal information.
+
+[source,bash]
+----
+RMAN> restore database validate preview ;
+
+Starting restore at 2015-11-12 03:36:12
+allocated channel: ORA_DISK_1
+channel ORA_DISK_1: SID=17 device type=DISK
+
+List of Backup Sets
+===================
+
+BS Key  Type LV Size       Device Type Elapsed Time Completion Time
+------- ---- -- ---------- ----------- ------------ -------------------
+29      Full    39.34M     DISK        00:00:08     2015-11-10 05:18:41
+BP Key: 29   Status: AVAILABLE  Compressed: YES  Tag: TAG20151110T051833
+Piece Name: +FRA/uxodb11g/backupset/2015_11_10/nnndf0_tag20151110t051833_0.271.895382313
+List of Datafiles in backup set 29
+File LV Type Ckp SCN    Ckp Time            Name
+---- -- ---- ---------- ------------------- ----
+1       Full 308674     2015-11-10 03:34:13 +DATA/uxodb11g/datafile/system.283.894724339
+2       Full 308674     2015-11-10 03:34:13 +DATA/uxodb11g/datafile/sysaux.284.894724347
+3       Full 308674     2015-11-10 03:34:13 +DATA/uxodb11g/datafile/undotbs1.289.894724351
+4       Full 308674     2015-11-10 03:34:13 +DATA/uxodb11g/datafile/users.295.894724357
+Media recovery start SCN is 308674
+Recovery must be done beyond SCN 308674 to clear datafile fuzziness
+Finished restore at 2015-11-12 03:36:13
+----
+
+=== Test recovery
+
+In a recovery situation, you can first test a recovery without making change on datafiles:
+
+[source,bash]
+----
+RMAN> alter database mount ;
+
+database mounted
+
+RMAN> recover database test ;
+
+Starting recover at 2015-11-12 04:33:12
+allocated channel: ORA_DISK_1
+channel ORA_DISK_1: SID=323 device type=DISK
+
+starting media recovery
+RMAN-11006: WARNING: test recovery results:
+ORA-10574: Test recovery did not corrupt any data block
+ORA-10573: Test recovery tested redo from change 348697 to 348697
+ORA-10570: Test recovery complete
+
+media recovery complete, elapsed time: 00:00:00
+
+Finished recover at 2015-11-12 04:33:14
+----
+
+=== Notify result
+
+Send email notification of the backup with keyword like "SUCCESS" or "FAIL" in title.
+
+=== Backup performance
+
+Set parallelism without compression: 
+[source,bash]
+----
+RMAN> CONFIGURE DEVICE TYPE DISK PARALLELISM 2 ;
+----
+
+Set parallelism + compression :
+[source,bash]
+----
+RMAN> CONFIGURE COMPRESSION ALGORITHM 'BASIC' ;
+RMAN> CONFIGURE DEVICE TYPE DISK PARALLELISM 2 BACKUP TYPE TO COMPRESSED BACKUPSET ;
+----
+
+=== Advanced compression license  
+
+Advanced compression license is NOT required for BASIC compression algorithm, but the other compression algorithm type require a licence.

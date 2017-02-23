@@ -1,0 +1,280 @@
+= Archive Log Mode
+Кархачев Роман <roman@aviacons.ru>
+:doctype: article
+:encoding: utf-8
+:lang: ru
+:toc2: 
+:homepage: http://www.aviacons.ru
+:experimental:
+
+
+Процесс преобразования журнальных файлов в архивные журнальные файлы называется архивированием. Это возможно только когда база данных находится в режиме `ARCHIVELOG`. Вот некоторые преимущества режима `ARCHIVELOG`:
+
+*   Восстановление базы данных
+*   Update a standby database
+*   Perform a hot backup
+
+.In this article...   
+[NOTE]
+====
+* Oracle 10g and Oracle 11g are concerned.  
+* a database SHUTDOWN is required to enable/disable Archive Log.  
+* SYSTEM privileges is necessary to execute commands. Otherwise, you may get some errors.
+====
+
+== Archive log status
+
+Before starting, you should check your db instance archive log status in order to know if your instance already is in archive log mode or not.You have different ways to see that:
+
+[source,sql]
+----
+-- Show archive log status
+
+ARCHIVE LOG LIST ;
+/*
+Database log mode            No Archive mode
+Automatic archival           Disabled
+Archive destination          USE_DB_RECOVERY_FILE_DEST
+Oldest online log sequence   2186
+Current log sequence         2188
+*/
+
+SELECT LOG_MODE FROM SYS.V$DATABASE ;
+/*
+LOG_MODE
+------------
+NOARCHIVELOG
+*/
+----
+
+As you can see from the result here, the instance is definately not in Archive Log mode.
+
+== Enable archive log
+
+.Careful ...  
+[CAUTION]
+====
+It is recommanded to perform a *backup* of your instance *before* doing these changes.
+====
+
+You can let the default parameters to get the archive log works. Otherwise if you want to personalize the archive log parameters, you may want to check how to change the different parameters here first.
+
+We will now enable the archive log for the instance as following:
+
+[source,sql]
+----
+-- Enable archive log
+
+SHUTDOWN IMMEDIATE ;
+
+STARTUP MOUNT ;
+
+ALTER DATABASE ARCHIVELOG ;
+
+ALTER DATABASE OPEN ;
+
+----
+
+Let's check the archive log mode information again:
+
+[source,sql]
+----
+ALTER SYSTEM ARCHIVE LOG LIST ;
+/*
+Database log mode            Archive mode
+Automatic archival           Enabled
+Archive destination          /u01/app/oracle/oradata/orcl/arch
+Oldest online log sequence   2186
+Current log sequence         2188
+*/
+
+SELECT LOG_MODE FROM SYS.V$DATABASE ;
+/*
+LOG_MODE
+------------
+ARCHIVELOG
+*/
+----
+
+Here we go, we are in archive log mode now!
+
+.Do you know?  
+[TIP]
+====
+Before Oracle 10g, the following commands should be executed in order to automaticaly enable automatic archiving:
+[source,sql]
+----
+ALTER SYSTEM ARCHIVE LOG START ;  
+ALTER SYSTEM SET LOG_ARCHIVE_START=TRUE SCOPE=SPFILE ;
+----
+This is now *deprecated* on Oracle 10g and onward.
+====
+
+== Disable archive log
+
+In case of, you really need to turn off Archive Log for any reasons:
+
+[source,sql]
+----
+-- Disable archive log
+
+SHUTDOWN IMMEDIATE ;
+
+STARTUP MOUNT ;
+
+ALTER DATABASE NOARCHIVELOG ;
+
+ALTER DATABASE OPEN ;
+
+----
+
+The instance should now be in `NO ARCHIVE LOG` mode.
+
+== Going futher ...
+
+=== Archive log parameters
+
+.Careful ...  
+[CAUTION]
+====
+some parameter changes may require to restart the `db` instance.
+====
+
+=== Change archive log destination
+
+By default Archive destination shows `USE_DB_RECOVERY_FILE_DEST`, it means archive logs will be written to the flash recovery area path define by `RECOVERY_FILE_DEST` parameter. But if `LOG_ARCHIVE_DEST_n` is set then it will define the location where the archive logs will be written.
+
+[source,sql]
+----
+-- Show archive log status (before)
+
+ALTER SYSTEM ARCHIVE LOG LIST ;
+/*
+Database log mode            No Archive mode
+Automatic archival           Disabled
+Archive destination          USE_DB_RECOVERY_FILE_DEST
+Oldest online log sequence   2186
+Current log sequence         2188
+*/
+
+-- Get flash recovery parameters
+
+SHOW PARAMETER recovery_file_dest ;
+/*
+NAME                            TYPE        VALUE
+------------------------------- ----------- -----------------------------------
+db_recovery_file_dest           string      /u01/app/oracle/flash_recovery_area
+db_recovery_file_dest_size      big integer 4096M
+*/
+
+-- Set log_archive_dest_1 parameter
+
+ALTER SYSTEM SET log_archive_dest_1='LOCATION=/u01/app/oracle/oradata/orcl/arch' SCOPE=BOTH ;
+/*
+System altered.
+*/
+
+-- Show archive log status (after)
+
+ALTER SYSTEM ARCHIVE LOG LIST ;
+/*
+Database log mode            No Archive mode
+Automatic archival           Disabled
+Archive destination          /u01/app/oracle/oradata/orcl/arch
+Oldest online log sequence   2186
+Current log sequence         2188
+*/
+----
+
+For more information, please check oracle documentation https://docs.oracle.com/cd/E18283_01/server.112/e17120/archredo004.htm[here].
+
+=== Others useful archive log parameters
+
+Here are some more parameters, you can be interrested in.
+
+`https://docs.oracle.com/cd/E18283_01/server.112/e17110/initparams124.htm[LOG_ARCHIVE_FORMAT]` specifies the default filename format when archiving redo log files.
+
+*   The following variables can be used in the format:
+
+    **   `%s` log sequence number
+    **   `%S` log sequence number, zero filled
+    **   `%t` thread number
+    **   `%T` thread number, zero filled
+    **   `%a` activation ID
+    **   `%d` database ID
+    **  `%r` resetlogs ID that ensures unique names are constructed for the archived log files across multiple incarnations of the database
+*   Example:
++
+[source,sql]
+----
+ALTER SYSTEM SET LOG_ARCHIVE_FORMAT='log%t_%s_%r.arc'SCOPE=BOTH ;
+----
+
+`https://docs.oracle.com/cd/E18283_01/server.112/e17110/initparams126.htm[LOG_ARCHIVE_MAX_PROCESSES]` specifies the maximum number of ARCn processes that can be created.
+
+=== Enable archive log with manual archiving
+
+It is *not recommanded* so use it if you really know what you are doing.
+
+[source,sql]
+----
+-- Enable archive log with manual archiving
+
+SHUTDOWN IMMEDIATE ;
+
+STARTUP MOUNT ;
+
+ALTER DATABASE ARCHIVELOG MANUAL;
+
+ALTER DATABASE OPEN ;
+
+-- The following can be used in automatic archiving as well
+-- Manually switch online rego log and archive all unarchived log files
+
+ALTER SYSTEM SWITCH LOGFILE ;
+ALTER SYSTEM ARCHIVE LOG ALL ;
+----
+
+.Careful ...  
+[CAUTION]
+====
+If all your online redo logs are filled up, then this mode will hang your database until you manually archive one of them at least.
+====
+
+For more information, please check oracle documentation https://docs.oracle.com/cd/E18283_01/server.112/e17120/archredo004.htm[here].
+
+=== Some useful queries
+
+[source,sql]
+----
+-- Daily archives log size generated
+
+SELECT TRUNC(next_time) "Date", ROUND(SUM(blocks*block_size/1024/1024)) Mo
+FROM v$archived_log
+GROUP BY TRUNC(next_time)
+ORDER BY 1 DESC ;
+/*
+Date             MO
+-------- ----------
+23/02/12        102
+22/02/12        132
+21/02/12        127
+20/02/12        129
+*/
+----
+
+=== Archive log views
+
+Several dynamic performance views contain useful information about archived redo logs, as summarized in the following table.
+
+|====
+| Dynamic Performance View | Description
+| `V$DATABASE` | Shows if the database is in `ARCHIVELOG` or `NOARCHIVELOG` mode and if `MANUAL` (archiving mode) has been specified.
+| `V$ARCHIVED_LOG` | Displays historical archived log information from the control file. If you use a recovery catalog, the `RC_ARCHIVED_LOG` view contains similar information.
+| `V$ARCHIVE_DEST` | Describes the current instance, all archive destinations, and the current value, mode, and status of these destinations.
+| `V$ARCHIVE_PROCESSES` | Displays information about the state of the various archive processes for an instance.
+| `V$BACKUP_REDOLOG` | Contains information about any backups of archived logs. If you use a recovery catalog, the `RC_BACKUP_REDOLOG` contains similar information.
+| `V$LOG` | Displays all redo log groups for the database and indicates which need to be archived.
+| `V$LOG_HISTORY` | Contains log history information such as which logs have been archived and the SCN range for each archived log.
+|====
+
