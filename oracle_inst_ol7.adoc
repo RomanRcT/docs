@@ -6,10 +6,12 @@
 :toc: left
 :homepage: http://www.aviacons.ru
 :experimental:
+ 
+== Введение
 
-Oracle Linux 7 is a production release, but Oracle Database 12c is only supported on it from (12.1.0.2) onward. This installation should not be used for a real system when using 12c database versions prior to 12.1.0.2.
+Oracle Linux 7 это выпущенный релиз, но Oracle Database 12c поддерживается на нем только с версии (12.1.0.2) и выше. Эта установка не должна быть исползована на реальных системах использующих 12с базу данных версии до 12.1.0.2.
 
-This article describes the installation of Oracle Database 12c Release 1 (12.1) 64-bit on Oracle Linux 7 (OL7) 64-bit. The article is based on a server installation with a minimum of 2G swap and secure Linux set to permissive. An example of this type of Linux installation can be seen here.
+Эта статья описывает установку Oracle Database 12c Release 1 (12.1) 64-битной версии на Oracle Linux 7 (OL7) 64-бит. Эта статья основана на серверной установке с минимум 2Гб файла подкачки и seLinux в режиме permissive. 
 
 == Download Software
 
