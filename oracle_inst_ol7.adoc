@@ -13,48 +13,47 @@ Oracle Linux 7 это выпущенный релиз, но Oracle Database 12c 
 
 Эта статья описывает установку Oracle Database 12c Release 1 (12.1) 64-битной версии на Oracle Linux 7 (OL7) 64-бит. Эта статья основана на серверной установке с минимум 2Гб файла подкачки и seLinux в режиме permissive. 
 
-== Download Software
+== Загрузка программного обеспечения
 
-Download the Oracle software from OTN or MOS depending on your support status.
+Загрузите ПО Oracle с OTN или MOS в зависимости от статуса вашей поддержки.
 
 * http://www.oracle.com/technetwork/database/enterprise-edition/downloads/index.html[OTN: Oracle Database 12c Release 1 (12.1.0.2) Software (64-bit).]
 * http://edelivery.oracle.com/[edelivery: Oracle Database 12c Release 1 (12.1.0.2) Software (64-bit)]
 
-== Unpack Files
+== Распаковка файлов
 
-Unzip the files.
+Раззипуйте файлы.
 [source,bash]
 -----------------
 unzip linuxamd64_12102_database_1of2.zip
 unzip linuxamd64_12102_database_2of2.zip
 -----------------
-You should now have a single directory called "database" containing installation files.
+Теперь  у вас должна быть одна директория названная "database" содержащая инсталляционные файлы.
 
-== Hosts File
-
-The "/etc/hosts" file must contain a fully qualified name for the server.
+== Файл Hosts
+Файл `/etc/hosts` должен содержать полное имя сервера.
 [source,bash]
 -----------------
 <IP-address>  <fully-qualified-machine-name>  <machine-name>
 -----------------
 
-.For example.
+.Например:
 [source,bash]
 -----------------
 127.0.0.1       localhost localhost.localdomain localhost4 localhost4.localdomain4
 192.168.0.215   ol7.localdomain  ol7
 -----------------
 
-Set the correct hostname in the "/etc/hostname" file.
+Установите корректное имя сервера в файле `/etc/hostname`.
 
 [source,bash]
 -----------------
 ol7.localdomain
 -----------------
 
-== Oracle Installation Prerequisites
+== Перед установкой Oracle 
 
-Perform either the Automatic Setup or the Manual Setup to complete the basic prerequisites. The Additional Setup is required for all installations.
+Выполните Автоматическую устновку или Ручную установку для завершения основных предустановочных шагов. Дополнительная установка нужна для всех установок.
 
 === Automatic Setup
 
